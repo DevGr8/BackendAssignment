@@ -31,7 +31,7 @@ export default function Login() {
       <input type="password" placeholder="Password" value={f.password} onChange={set('password')} required />
       {err && <p className="err">{err}</p>}
       <button>{mode === 'login' ? 'Login' : 'Register'}</button>
-      <p className="link" onClick={() => setMode(mode === 'login' ? 'register' : 'login')}>
+      <p className="link" onClick={() => { setErr(''); setMode(mode === 'login' ? 'register' : 'login'); }}>
         {mode === 'login' ? 'New student? Register' : 'Have an account? Login'}
       </p>
     </form>

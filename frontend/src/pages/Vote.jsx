@@ -9,29 +9,31 @@ export default function Vote() {
   const [picked, setPicked] = useState(null);
   const [msg, setMsg] = useState('');
   const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => { api.get(`/elections/${id}`).then((r) => setElection(r.data)).catch((e) => setErr(errMsg(e))); }, [id]);
 
   const confirm = async () => {
+    if (busy) return;
+    setBusy(true);
     setErr('');
     try {
       const { data } = await api.post(`/elections/${id}/vote`, { candidateId: picked._id });
       setMsg(data.message);
       setTimeout(() => nav('/'), 1500);
-    } catch (e) { setErr(errMsg(e)); setPicked(null); }
+    } catch (e) { setErr(errMsg(e)); setPicked(null); setBusy(false); }
   };
 
   if (!election) return <p>{err || 'Loading…'}</p>;
   if (msg) return <div className="card"><h3>✅ {msg}</h3><p>Your vote is final and cannot be changed.</p></div>;
 
-  // Vote confirmation screen
   if (picked) return (
     <div className="card">
       <h3>Confirm your vote</h3>
       <p>You are voting for <b>{picked.name}</b> as <b>{election.title}</b>.</p>
       <p className="err">This action is final — votes cannot be edited.</p>
       {err && <p className="err">{err}</p>}
-      <div className="row"><button onClick={confirm}>Confirm vote</button><button className="ghost" onClick={() => setPicked(null)}>Go back</button></div>
+      <div className="row"><button onClick={confirm} disabled={busy}>{busy ? 'Submitting…' : 'Confirm vote'}</button><button className="ghost" onClick={() => setPicked(null)}>Go back</button></div>
     </div>
   );
 

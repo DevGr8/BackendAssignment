@@ -32,6 +32,7 @@ export default function App() {
           <Route path="/elections/new" element={<Private role="admin"><CreateElection /></Private>} />
           <Route path="/elections/:id/candidates" element={<Private role="admin"><AddCandidate /></Private>} />
           <Route path="/elections/:id/results" element={<Private role="admin"><Results /></Private>} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
     </>
