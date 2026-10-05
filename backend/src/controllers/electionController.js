@@ -6,10 +6,8 @@ const Vote = require('../models/Vote');
 const statusOf = (e, now = new Date()) =>
   now < e.startTime ? 'upcoming' : now > e.endTime ? 'closed' : 'open';
 
-// Normalised name used to spot duplicate candidates ("alice" == " Alice ")
 const norm = (n) => String(n).trim().toLowerCase();
 
-// POST /elections  (admin)
 exports.createElection = async (req, res, next) => {
   try {
     const { title, description, startTime, endTime } = req.body;
@@ -23,7 +21,6 @@ exports.createElection = async (req, res, next) => {
     if (isNaN(start) || isNaN(end)) return res.status(400).json({ message: 'Invalid date format' });
     if (end <= start) return res.status(400).json({ message: 'endTime must be after startTime' });
 
-    // Validate candidates BEFORE creating anything, so a bad candidate can't leave a half-made election behind
     if (rawCands.some((c) => !c || typeof c.name !== 'string' || !c.name.trim())) {
       return res.status(400).json({ message: 'Every candidate needs a name' });
     }
@@ -42,7 +39,7 @@ exports.createElection = async (req, res, next) => {
           rawCands.map((c) => ({ name: c.name, department: c.department, manifesto: c.manifesto, election: election._id }))
         );
       } catch (err) {
-        await Election.deleteOne({ _id: election._id }); // roll back: no election without its candidates
+        await Election.deleteOne({ _id: election._id });
         throw err;
       }
     }
@@ -50,7 +47,6 @@ exports.createElection = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-// POST /elections/:id/candidates  (admin) - only before voting starts
 exports.addCandidate = async (req, res, next) => {
   try {
     const election = await Election.findById(req.params.id);
@@ -69,7 +65,7 @@ exports.addCandidate = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-// GET /elections  (any logged-in user) - includes status + whether *I* have voted
+// GET /elections
 exports.listElections = async (req, res, next) => {
   try {
     const elections = await Election.find().sort({ startTime: -1 }).lean();
@@ -101,19 +97,16 @@ exports.castVote = async (req, res, next) => {
     const election = await Election.findById(req.params.id);
     if (!election) return res.status(404).json({ message: 'Election not found' });
 
-    // Time-window validation (server clock is the source of truth)
     const now = new Date();
     if (now < election.startTime) return res.status(403).json({ message: 'Voting has not started yet' });
     if (now > election.endTime) return res.status(403).json({ message: 'Voting has ended' });
 
-    // Candidate must belong to THIS election
     const candidate = await Candidate.findOne({ _id: candidateId, election: election._id });
     if (!candidate) return res.status(400).json({ message: 'Candidate does not belong to this election' });
 
     try {
       await Vote.create({ student: req.user._id, election: election._id, candidate: candidate._id });
     } catch (err) {
-      // Unique compound index (student + election) rejected a second vote
       if (err.code === 11000) {
         return res.status(409).json({ message: 'You have already voted in this election' });
       }
@@ -123,7 +116,6 @@ exports.castVote = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-// GET /elections/:id/results  (admin) - live counts
 exports.getResults = async (req, res, next) => {
   try {
     const election = await Election.findById(req.params.id).lean();
