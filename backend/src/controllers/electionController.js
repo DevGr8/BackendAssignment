@@ -6,11 +6,16 @@ const Vote = require('../models/Vote');
 const statusOf = (e, now = new Date()) =>
   now < e.startTime ? 'upcoming' : now > e.endTime ? 'closed' : 'open';
 
+// Normalised name used to spot duplicate candidates ("alice" == " Alice ")
+const norm = (n) => String(n).trim().toLowerCase();
+
 // POST /elections  (admin)
 exports.createElection = async (req, res, next) => {
   try {
-    const { title, description, startTime, endTime, candidates = [] } = req.body;
-    if (!title || !startTime || !endTime) {
+    const { title, description, startTime, endTime } = req.body;
+    const rawCands = Array.isArray(req.body.candidates) ? req.body.candidates : [];
+
+    if (typeof title !== 'string' || !title.trim() || !startTime || !endTime) {
       return res.status(400).json({ message: 'title, startTime and endTime are required' });
     }
     const start = new Date(startTime);
@@ -18,14 +23,28 @@ exports.createElection = async (req, res, next) => {
     if (isNaN(start) || isNaN(end)) return res.status(400).json({ message: 'Invalid date format' });
     if (end <= start) return res.status(400).json({ message: 'endTime must be after startTime' });
 
+    // Validate candidates BEFORE creating anything, so a bad candidate can't leave a half-made election behind
+    if (rawCands.some((c) => !c || typeof c.name !== 'string' || !c.name.trim())) {
+      return res.status(400).json({ message: 'Every candidate needs a name' });
+    }
+    const names = rawCands.map((c) => norm(c.name));
+    if (new Set(names).size !== names.length) {
+      return res.status(400).json({ message: 'Duplicate candidate names in the same election' });
+    }
+
     const election = await Election.create({
       title, description, startTime: start, endTime: end, createdBy: req.user._id,
     });
     let created = [];
-    if (Array.isArray(candidates) && candidates.length) {
-      created = await Candidate.insertMany(
-        candidates.map((c) => ({ name: c.name, department: c.department, manifesto: c.manifesto, election: election._id }))
-      );
+    if (rawCands.length) {
+      try {
+        created = await Candidate.insertMany(
+          rawCands.map((c) => ({ name: c.name, department: c.department, manifesto: c.manifesto, election: election._id }))
+        );
+      } catch (err) {
+        await Election.deleteOne({ _id: election._id }); // roll back: no election without its candidates
+        throw err;
+      }
     }
     res.status(201).json({ election, candidates: created });
   } catch (err) { next(err); }
@@ -40,7 +59,11 @@ exports.addCandidate = async (req, res, next) => {
       return res.status(403).json({ message: 'Candidates cannot be added once voting has started' });
     }
     const { name, department, manifesto } = req.body;
-    if (!name) return res.status(400).json({ message: 'Candidate name is required' });
+    if (typeof name !== 'string' || !name.trim()) return res.status(400).json({ message: 'Candidate name is required' });
+    const existing = await Candidate.find({ election: election._id }).select('name').lean();
+    if (existing.some((c) => norm(c.name) === norm(name))) {
+      return res.status(409).json({ message: 'A candidate with this name already exists in this election' });
+    }
     const candidate = await Candidate.create({ name, department, manifesto, election: election._id });
     res.status(201).json(candidate);
   } catch (err) { next(err); }
