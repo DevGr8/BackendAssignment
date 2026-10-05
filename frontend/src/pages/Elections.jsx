@@ -11,7 +11,10 @@ export default function Elections() {
 
   return (
     <>
-      <h2>Elections</h2>
+      <div className="row spread">
+        <h2>Elections</h2>
+        {user.role === 'admin' && <Link to="/elections/new"><button>+ Create election</button></Link>}
+      </div>
       {err && <p className="err">{err}</p>}
       {list.length === 0 && !err && <p>No elections yet.</p>}
       {list.map((e) => (
@@ -25,6 +28,7 @@ export default function Elections() {
               : <span>Voting {e.status === 'upcoming' ? 'not started' : 'closed'}</span>
             )}
             {user.role === 'admin' && <Link to={`/elections/${e._id}/results`}><button>Live results</button></Link>}
+            {user.role === 'admin' && e.status === 'upcoming' && <Link to={`/elections/${e._id}/candidates`}><button className="ghost">Add candidate</button></Link>}
           </div>
         </div>
       ))}

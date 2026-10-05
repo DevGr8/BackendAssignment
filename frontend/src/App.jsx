@@ -3,6 +3,7 @@ import Login from './pages/Login.jsx';
 import Elections from './pages/Elections.jsx';
 import Vote from './pages/Vote.jsx';
 import Results from './pages/Results.jsx';
+import { CreateElection, AddCandidate } from './pages/Admin.jsx';
 
 const getUser = () => JSON.parse(localStorage.getItem('user') || 'null');
 
@@ -28,6 +29,8 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<Private><Elections /></Private>} />
           <Route path="/elections/:id/vote" element={<Private role="student"><Vote /></Private>} />
+          <Route path="/elections/new" element={<Private role="admin"><CreateElection /></Private>} />
+          <Route path="/elections/:id/candidates" element={<Private role="admin"><AddCandidate /></Private>} />
           <Route path="/elections/:id/results" element={<Private role="admin"><Results /></Private>} />
         </Routes>
       </main>
